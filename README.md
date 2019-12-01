@@ -10,7 +10,7 @@ sizes for each of them, stored in Cloud Storage for further delivery via a CDN.
 ```
 from cloudstorageimageresizer import ImageResizer
 
-# Initialize an S3ImageResizer:
+# Initialize a Google Cloud ImageResizer:
 i = ImageResizer()
 
 urls = [
@@ -26,7 +26,7 @@ for url in urls:
     # Apply the image EXIF rotation, if any
     i.orientate()
 
-    # Resize this image, store it to S3 and return its url
+    # Resize this image, store it into a Google Cloud Storage bucket and return its url
     url1 = i.resize(
         width=200
     ).store(
