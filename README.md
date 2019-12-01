@@ -2,6 +2,10 @@
 
 A python module to import, rotate, crop and resize pictures into Google Cloud Storage
 
+## DISCLAIMER
+
+THIS IS NOT AN OFFICIAL GOOGLE MODULE.
+
 ## Synopsis
 
 Typical usecase: fetch a bunch of image and generate thumbnails of various
