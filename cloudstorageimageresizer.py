@@ -2,7 +2,6 @@ import logging
 import requests
 from io import BytesIO
 from PIL import Image, ExifTags
-from google.cloud import storage
 
 
 log = logging.getLogger(__name__)

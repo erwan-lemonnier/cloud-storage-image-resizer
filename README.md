@@ -68,6 +68,15 @@ Then
 pip install cloudstorageimageresizer
 ```
 
+## Testing
+
+Add your json google api credentials in the file 'gcloud-credentials.json',
+edit the BUCKET_NAME in example.py and run it:
+
+```
+python example.py
+```
+
 ## Source code
 
 [https://github.com/erwan-lemonnier/cloud-storage-image-resizer](https://github.com/erwan-lemonnier/cloud-storage-image-resizer)
