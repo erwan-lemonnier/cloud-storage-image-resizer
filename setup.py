@@ -34,7 +34,7 @@ with open(path.join(this_directory, 'README.md'), encoding='utf-8') as f:
     long_description = f.read()
 
 setup(
-    name='cloudstorageimageresizer',
+    name='google-cloud-storage-image-resizer',
     version=version,
     url='https://github.com/erwan-lemonnier/cloud-storage-image-resizer',
     license='BSD',
