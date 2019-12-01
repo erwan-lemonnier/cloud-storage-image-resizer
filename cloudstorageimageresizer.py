@@ -2,9 +2,7 @@ import logging
 import requests
 from io import BytesIO
 from PIL import Image, ExifTags
-from google.cloud import datastore
-from google.cloud.datastore.key import Key
-from google.cloud.datastore.entity import Entity
+from google.cloud import storage
 
 
 log = logging.getLogger(__name__)
@@ -23,12 +21,12 @@ class RTFMException(CloudStorageImageResizerException):
     pass
 
 
-class S3ImageResizer(object):
+class ImageResizer(object):
 
-    def __init__(self, client_conn):
-        if not client_conn or 'S3Connection' not in str(type(client)):
+    def __init__(self, client):
+        if not client or 'google.cloud.storage.client.Client' not in str(type(client)):
             raise InvalidParameterException("Expecting an instance of boto s3 connection")
-        self.client_conn = client_conn
+        self.client = client
         self.image = None
         self.exif_tags = {}
 
@@ -113,12 +111,19 @@ class S3ImageResizer(object):
             to_height = height
 
         # Return a clone of self, loaded with the resized image
-        clone = S3ImageResizer(self.s3_conn)
+        clone = ImageResizer(self.client)
         log.info("Resizing image from (%s, %s) to (%s, %s)" % (cur_width, cur_height, to_width, to_height))
         clone.image = self.image.resize((to_width, to_height), Image.ANTIALIAS)
 
         return clone
 
+
+    def crop(self):
+        pass
+
+
+    def make_round(self):
+        pass
 
     def store(self, in_bucket=None, key_name=None, metadata=None, quality=95, public=True):
         """Store the loaded image into the given bucket with the given key name. Tag
@@ -136,32 +141,30 @@ class S3ImageResizer(object):
         else:
             metadata = {}
 
-        metadata['Content-Type'] = 'image/jpeg'
+        # metadata['Content-Type'] = 'image/jpeg'
 
         log.info("Storing image into bucket %s/%s" % (in_bucket, key_name))
 
         # Export image to a string
         sio = BytesIO()
-        self.image.save(sio, 'JPEG', quality=quality, optimize=True)
+        self.image.save(sio, 'PNG', quality=quality, optimize=True)
         contents = sio.getvalue()
         sio.close()
 
         # Get the bucket
-        bucket = self.s3_conn.get_bucket(in_bucket)
+        bucket = self.client.get_bucket(in_bucket)
 
         # Create a key containing the image. Make it public
-        k = Key(bucket)
-        k.key = key_name
-        k.set_contents_from_string(contents)
-        k.set_remote_metadata(metadata, {}, True)
+        # https://googleapis.dev/python/storage/latest/blobs.html
+        blob = bucket.blob(key_name)
+        blob.metadata = metadata
+        blob.upload_from_string(
+            contents,
+            content_type='image/png',
+        )
 
         if public:
-            k.set_acl('public-read')
+            blob.make_public()
 
         # Return the key's url
-        return k.generate_url(
-            method='GET',
-            expires_in=0,
-            query_auth=False,
-            force_http=False
-        )
+        return blob.public_url

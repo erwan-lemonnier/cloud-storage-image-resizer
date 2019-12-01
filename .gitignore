@@ -1,2 +1,4 @@
 cloudstorageimageresizer.egg-info
 dist
+gcloud-credentials.json
+__pycache__/**

@@ -46,6 +46,7 @@ setup(
     install_requires=[
         'Pillow',
         'requests',
+        'google-cloud-storage',
     ],
     tests_require=[
     ],
