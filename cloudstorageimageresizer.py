@@ -2,6 +2,8 @@ import logging
 import requests
 from io import BytesIO
 from PIL import Image, ExifTags
+from PIL import ImageOps, ImageDraw
+from PIL import ImageFilter
 
 
 log = logging.getLogger(__name__)
@@ -117,12 +119,70 @@ class ImageResizer(object):
         return clone
 
 
-    def crop(self):
-        pass
+    def crop(self, width=None, height=None):
+        """Crop this image to a box, centered on the middle of the image, of size width
+        x height pixels. The croped section must be smaller than the current
+        image. Both width and height must be set
+        """
+        assert width is not None
+        assert height is not None
+
+        w = self.image.width
+        h = self.image.height
+
+        assert w >= width, "Cannot crop to width %s image of smaller width %s" % (width, w)
+        assert h >= height, "Cannot crop to height %s image of smaller height %s" % (height, h)
+
+        left = int(w / 2 - width / 2)
+        right = int(w / 2 + width / 2)
+        upper = int(h / 2 - height / 2)
+        lower = int(h / 2 + height / 2)
+
+        log.info("Croping image of size (%s, %s) into a box of size (%s, %s, %s, %s)" % (width, height, left, upper, right, lower))
+
+        clone = ImageResizer(self.client)
+        clone.image = self.image.crop((left, upper, right, lower))
+
+        return clone
 
 
     def make_round(self):
-        pass
+        """Take a square PNG image and make its corner transparents so it looks like a circle"""
+        w = self.image.width
+        h = self.image.height
+
+        antialias = 10
+        mask = Image.new(
+            size=[int(dim * antialias) for dim in self.image.size],
+            mode='L',
+            color='black',
+        )
+        draw = ImageDraw.Draw(mask)
+
+        # draw outer shape in white (color) and inner shape in black (transparent)
+        edge = 2
+        draw.ellipse((edge, edge, w * antialias - edge, h * antialias - edge), fill=255)
+
+        # downsample the mask using PIL.Image.LANCZOS
+        # (a high-quality downsampling filter).
+        mask = mask.resize(self.image.size, Image.LANCZOS)
+
+        # mask = Image.new('L', (h, w), 0)
+        # draw = ImageDraw.Draw(mask)
+        # edge = 2
+        # draw.ellipse((edge, edge, w - edge, h - edge), fill=255, Image.ANTIALIAS)
+        # # mask = mask.filter(ImageFilter.BLUR)
+        # # mask = mask.filter(ImageFilter.SMOOTH_MORE)
+        # # mask = mask.filter(ImageFilter.SMOOTH_MORE)
+
+        image = ImageOps.fit(self.image, mask.size, centering=(0.5, 0.5))
+        image.putalpha(mask)
+
+        clone = ImageResizer(self.client)
+        clone.image = image
+
+        return clone
+
 
     def store(self, in_bucket=None, key_name=None, metadata=None, quality=95, public=True):
         """Store the loaded image into the given bucket with the given key name. Tag
