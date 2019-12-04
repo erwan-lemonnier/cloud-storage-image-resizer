@@ -14,7 +14,7 @@ sizes for each of them, stored in Cloud Storage for further delivery via a CDN.
 ```
 from cloudstorageimageresizer import ImageResizer
 
-# Initialize a Google Cloud ImageResizer:
+# Initialize an ImageResizer:
 i = ImageResizer()
 
 urls = [
@@ -24,8 +24,12 @@ urls = [
 
 for url in urls:
 
-    # Fetch image into memory
-    i.fetch(url)
+    # Fetch image into memory and store it in original format to a Google Cloud
+    # Storage bucket
+    i.fetch(url).store(
+        in_bucket='my-images',
+        key_name='image-original'
+    )
 
     # Apply the image EXIF rotation, if any
     i.orientate()
@@ -35,7 +39,7 @@ for url in urls:
         width=200
     ).store(
         in_bucket='my-images',
-        key_name='image-w200-jpg'
+        key_name='image-w200'
     )
 
     # Do it again, with a different size
@@ -43,7 +47,7 @@ for url in urls:
         height=400
     ).store(
         in_bucket='my-images',
-        key_name='image-h200-jpg'
+        key_name='image-h200'
     )
 ```
 
@@ -56,6 +60,8 @@ disk.
 
 ImageResizer uses PIL, has reasonable defaults for downsizing images and
 handle images with alpha channels nicely.
+
+All images are stored in png format to preserve transparency.
 
 ## Installation
 
