@@ -3,7 +3,6 @@ import requests
 from io import BytesIO
 from PIL import Image, ExifTags
 from PIL import ImageOps, ImageDraw
-from PIL import ImageFilter
 
 
 log = logging.getLogger(__name__)
