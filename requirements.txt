@@ -1,2 +1,1 @@
-requests==2.22.0
-Pillow==6.2.1
+-r requirements/prod.txt
