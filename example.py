@@ -31,7 +31,7 @@ client = storage.Client.from_service_account_json('gcloud-credentials.json')
 
 i = ImageResizer(client)
 
-i.fetch_image_from_url('https://cdn.shopify.com/s/files/1/1414/7912/products/olm_50macs_rainbow.jpg?v=1541103852')
+i.fetch_image_from_url('https://cdn.shopify.com/s/files/1/1414/7912/products/olm_50macs_rainbow.jpg?v=1541103852')  # noqa
 
 url = i.store(
     in_bucket=BUCKET_NAME,
