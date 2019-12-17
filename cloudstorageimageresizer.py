@@ -49,11 +49,11 @@ class ImageResizer(object):
 
         return self
 
-    def load_file_into_memory(self, file):
-        """Keep uploaded file in memory"""
-        assert file
-        log.debug("Load file into memory: %s" % file)
-        return self.__image_base(file)
+    def load_image_into_memory(self, image):
+        """Keep uploaded image in memory"""
+        assert image
+        log.debug("Load file into memory: %s" % image)
+        return self.__image_base(image)
 
     def fetch_image_from_url(self, url):
         """Fetch an image and keep it in memory"""
