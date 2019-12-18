@@ -17,13 +17,10 @@ if not version:
         raise Exception("Please set a version with --version x.y.z")
     else:
         path_pkg_info = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'PKG-INFO')
-        print("Searching Version in %s" % path_pkg_info)
         if os.path.isfile(path_pkg_info):
             with open(path_pkg_info, 'r', encoding='utf-8') as f:
                 for l in f.readlines():
-                    print("Read l: %s" % l)
                     if 'Version:' in l:
-                        print("FOUND VERSION!")
                         _, version = l.split(' ')
                         version = version.strip()
                         break
