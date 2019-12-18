@@ -7,7 +7,7 @@ from google.cloud import storage
 # proper test suite...)
 #
 # Requirements:
-# 1. Put your google storage credentials in json format in the file 'gcloud-credentials.json'
+# 1. Put your google storage credentials in json format in the file 'gcloud-credentials.json'  # noqa
 # 2. Edit the BUCKET_NAME to a bucket you have write access to
 #
 # Run:
@@ -31,7 +31,7 @@ client = storage.Client.from_service_account_json('gcloud-credentials.json')
 
 i = ImageResizer(client)
 
-i.fetch_image_from_url('https://cdn.shopify.com/s/files/1/1414/7912/products/olm_50macs_rainbow.jpg?v=1541103852')
+i.fetch_image_from_url('https://cdn.shopify.com/s/files/1/1414/7912/products/olm_50macs_rainbow.jpg?v=1541103852')  # noqa
 
 url = i.store_and_return_url(
     in_bucket=BUCKET_NAME,

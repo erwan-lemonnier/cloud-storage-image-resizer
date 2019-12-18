@@ -25,27 +25,40 @@ class RTFMException(CloudStorageImageResizerException):
 
 
 class ImageResizer(object):
+    no_image_loaded_msg = "No image loaded!"
+
     def __init__(self, client, bucket_name=None):
         """Initialize an ImageResizer with a Google Storage Client instance and
         optionaly the name of the Storage bucket in which to store images.
 
         """
-        if not client or 'google.cloud.storage.client.Client' not in str(type(client)):
-            raise InvalidParameterException("Expected an instance of google storage Client, got a %s" % client)
+        gcloud_client_str = 'google.cloud.storage.client.Client'
+        if not client or gcloud_client_str not in str(type(client)):
+            msg = "Expected an instance of google storage Client, got a %s" % \
+                  client
+            raise InvalidParameterException(msg)
         self.client = client
         self.image = None
         self.exif_tags = {}
         self.bucket_name = bucket_name
 
-    def __load_image(self, image_in_bytes):
-        """Instantiate a Pillow image, load its exif tags if any and do some preprocessing"""
-        image = Image.open(image_in_bytes)
+    def __set_exif_tags(self, image):
         # Fetch exif tags (if any)
         if image._getexif():
-            tags = dict((ExifTags.TAGS[k].lower(), v) for k, v in list(image._getexif().items()) if k in ExifTags.TAGS)
+            tags = dict(
+                (ExifTags.TAGS[k].lower(), v)
+                for k, v in list(image._getexif().items())
+                if k in ExifTags.TAGS
+            )
             self.exif_tags = tags
+
+    def __load_image(self, image_in_bytes):
+        """Instantiate a Pillow image,
+        set its exif tags if any and do some pre-processing"""
+        image = Image.open(image_in_bytes)
+        self.__set_exif_tags(image)
         # Make sure Pillow does not ignore alpha channels during conversion
-        # See http://twigstechtips.blogspot.se/2011/12/python-converting-transparent-areas-in.html
+        # See http://twigstechtips.blogspot.se/2011/12/python-converting-transparent-areas-in.html  # noqa
         image = image.convert("RGBA")
 
         canvas = Image.new('RGBA', image.size, (255, 255, 255, 255))
@@ -65,7 +78,8 @@ class ImageResizer(object):
         log.debug("Fetching image at url %s" % url)
         res = requests.get(url)
         if res.status_code != 200:
-            raise CantFetchImageException("Failed to load image at url %s" % url)
+            msg = "Failed to load image at url %s" % url
+            raise CantFetchImageException(msg)
         return self.__load_image(BytesIO(res.content))
 
     def fetch_image_from_bytestring(self, bytestring):
@@ -83,20 +97,22 @@ class ImageResizer(object):
             log.debug("No exif orientation known for this image")
             return self
 
-        # If image has an exif rotation, apply it to the image prior to resizing
-        # See http://stackoverflow.com/questions/4228530/pil-thumbnail-is-rotating-my-image
+        # If image has an exif rotation, apply it to the image prior to resizing  # noqa
+        # See http://stackoverflow.com/questions/4228530/pil-thumbnail-is-rotating-my-image  # noqa
 
         angle = self.exif_tags['orientation']
         log.debug("Applying exif orientation %s to image" % angle)
+        tb = Image.FLIP_TOP_BOTTOM
+        lr = Image.FLIP_LEFT_RIGHT
         angle_to_degrees = [
             # orientation = transformation
             lambda i: i,
             lambda i: i.transpose(Image.FLIP_LEFT_RIGHT),
             lambda i: i.transpose(Image.ROTATE_180),
-            lambda i: i.transpose(Image.FLIP_TOP_BOTTOM),
-            lambda i: i.transpose(Image.ROTATE_90).transpose(Image.FLIP_LEFT_RIGHT),
+            lambda i: i.transpose(tb),
+            lambda i: i.transpose(Image.ROTATE_90).transpose(lr),
             lambda i: i.transpose(Image.ROTATE_270),
-            lambda i: i.transpose(Image.ROTATE_90).transpose(Image.FLIP_TOP_BOTTOM),
+            lambda i: i.transpose(Image.ROTATE_90).transpose(tb),
             lambda i: i.transpose(Image.ROTATE_90),
         ]
 
@@ -108,30 +124,35 @@ class ImageResizer(object):
     def resize_if_larger_and_keep_ratio(self, width=None, height=None):
         """Resize the in-memory image with kept ratio automatically"""
         if not width and not height:
-            raise InvalidParameterException("One of width or height must be specified")
+            msg = "One of width or height must be specified"
+            raise InvalidParameterException(msg)
         if not self.image:
-            raise RTFMException("No image loaded! You must call fetch() before resize_if_larger_and_keep_ratio()")
+            raise RTFMException(self.no_image_loaded_msg)
 
         cur_width = self.image.width
         cur_height = self.image.height
 
         if width and height and cur_width > width and cur_height > height:
-            log.debug("Resizing image from (%s, %s) to (%s, %s)" % (cur_width, cur_height, width, height))
+            log.debug("Resizing image from (%s, %s) to (%s, %s)" %
+                      (cur_width, cur_height, width, height))
             self.image.thumbnail((width, height), Image.ANTIALIAS)
         elif width and cur_width > width:
-            log.debug("Resizing image width from %s to %s" % (cur_width, width))
+            log.debug("Resizing image width from %s to %s" %
+                      (cur_width, width))
             self.image.thumbnail((width, cur_height), Image.ANTIALIAS)
         elif height and cur_height > height:
-            log.debug("Resizing image height from %s to %s" % (cur_height, height))
+            log.debug("Resizing image height from %s to %s" %
+                      (cur_height, height))
             self.image.thumbnail((cur_width, height), Image.ANTIALIAS)
         return self
 
     def resize(self, width=None, height=None):
-        """Resize the image in-memory and return a clone of self holding the resized image"""
+        """Resize the image in-memory and return a clone of
+        self holding the resized image"""
         if not width and not height:
-            raise InvalidParameterException("One of width or height must be specified")
+            raise InvalidParameterException("Missing width or height")
         if not self.image:
-            raise RTFMException("No image loaded! You must call fetch() before resize()")
+            raise RTFMException(self.no_image_loaded_msg)
 
         cur_width = self.image.width
         cur_height = self.image.height
@@ -150,7 +171,8 @@ class ImageResizer(object):
 
         # Return a clone of self, loaded with the resized image
         clone = ImageResizer(self.client)
-        log.debug("Resizing image from (%s, %s) to (%s, %s)" % (cur_width, cur_height, to_width, to_height))
+        log.debug("Resizing image from (%s, %s) to (%s, %s)" %
+                  (cur_width, cur_height, to_width, to_height))
         clone.image = self.image.resize((to_width, to_height), Image.ANTIALIAS)
 
         return clone
@@ -166,15 +188,17 @@ class ImageResizer(object):
         w = self.image.width
         h = self.image.height
 
-        assert w >= width, "Cannot crop to width %s image of smaller width %s" % (width, w)
-        assert h >= height, "Cannot crop to height %s image of smaller height %s" % (height, h)
+        assert w >= width, "Cannot crop to width %s image of smaller width %s" % (width, w)  # noqa
+        assert h >= height, "Cannot crop to height %s image of smaller height %s" % (height, h)  # noqa
 
         left = int(w / 2 - width / 2)
         right = int(w / 2 + width / 2)
         upper = int(h / 2 - height / 2)
         lower = int(h / 2 + height / 2)
 
-        log.debug("Cropping image of size (%s, %s) into a box of size (%s, %s, %s, %s)" %
+        log.debug("Cropping image of size "
+                  "(%s, %s) into a box of size "
+                  "(%s, %s, %s, %s)" %
                   (width, height, left, upper, right, lower))
 
         clone = ImageResizer(self.client)
@@ -183,7 +207,8 @@ class ImageResizer(object):
         return clone
 
     def make_round(self):
-        """Take a square PNG image and make its corner transparents so it looks like a circle"""
+        """Take a square PNG image and make its corner transparent
+        so it looks like a circle"""
         w = self.image.width
         h = self.image.height
 
@@ -195,9 +220,11 @@ class ImageResizer(object):
         )
         draw = ImageDraw.Draw(mask)
 
-        # draw outer shape in white (color) and inner shape in black (transparent)
+        # draw outer shape in white (color) and
+        #  inner shape in black (transparent)
         edge = 2
-        draw.ellipse((edge, edge, w * antialias - edge, h * antialias - edge), fill=255)
+        xy = (edge, edge, w * antialias - edge, h * antialias - edge)
+        draw.ellipse(xy, fill=255)
 
         # downsample the mask using PIL.Image.LANCZOS
         # (a high-quality downsampling filter).
@@ -206,7 +233,7 @@ class ImageResizer(object):
         # mask = Image.new('L', (h, w), 0)
         # draw = ImageDraw.Draw(mask)
         # edge = 2
-        # draw.ellipse((edge, edge, w - edge, h - edge), fill=255, Image.ANTIALIAS)
+        # draw.ellipse((edge, edge, w - edge, h - edge), fill=255, Image.ANTIALIAS)  # noqa
         # # mask = mask.filter(ImageFilter.BLUR)
         # # mask = mask.filter(ImageFilter.SMOOTH_MORE)
         # # mask = mask.filter(ImageFilter.SMOOTH_MORE)
@@ -219,17 +246,20 @@ class ImageResizer(object):
 
         return clone
 
-    def store_and_return_blob(self, bucket_name=None, key_name=None, metadata=None, quality=95):
+    def store_and_return_blob(self,
+                              bucket_name=None,
+                              key_name=None,
+                              metadata=None,
+                              quality=95):
         """Store the image into the given bucket (or defaults to the bucket passed to
-        the constructor), with the given key name. Tag it with metadata if provided.
-
-        """
+        the constructor), with the given key name.
+        Tag it with metadata if provided."""
         if not bucket_name and not self.bucket_name:
             raise InvalidParameterException("No bucket_name specified")
         if not key_name:
             raise InvalidParameterException("No key_name specified")
         if not self.image:
-            raise RTFMException("No image loaded! You must call fetch() before store()")
+            raise RTFMException(self.no_image_loaded_msg)
 
         bucket_name = bucket_name or self.bucket_name
 
@@ -262,13 +292,21 @@ class ImageResizer(object):
         # Return the blob
         return blob
 
-    def store_and_return_url(self, in_bucket=None, key_name=None, metadata=None, quality=95, public=True):
+    def store_and_return_url(self,
+                             in_bucket=None,
+                             key_name=None,
+                             metadata=None,
+                             quality=95,
+                             public=True):
         """Store the loaded image into the given bucket with the given key name. Tag it
         with metadata if provided. Optionally make the Image public. Return its
         url.
 
         """
-        blob = self.store_and_return_blob(in_bucket, key_name, metadata, quality)
+        blob = self.store_and_return_blob(in_bucket,
+                                          key_name,
+                                          metadata,
+                                          quality)
 
         if public:
             blob.make_public()

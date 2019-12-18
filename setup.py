@@ -1,6 +1,6 @@
 from setuptools import setup
 import sys
-import os
+from os import path
 
 version = None
 
@@ -16,8 +16,10 @@ if not version:
     if 'sdist' in sys.argv:
         raise Exception("Please set a version with --version x.y.z")
     else:
-        path_pkg_info = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'PKG-INFO')
-        if os.path.isfile(path_pkg_info):
+        realpath = path.realpath(__file__)
+        dirname = path.dirname(realpath)
+        path_pkg_info = path.join(dirname, 'PKG-INFO')
+        if path.isfile(path_pkg_info):
             with open(path_pkg_info, 'r')as f:
                 for l in f.readlines():
                     if 'Version' in l:
@@ -28,11 +30,11 @@ if not version:
 print("version: %s" % version)
 
 # read the contents of the README file
-from os import path
 this_directory = path.abspath(path.dirname(__file__))
 with open(path.join(this_directory, 'README.md'), encoding='utf-8') as f:
     long_description = f.read()
 
+desc = 'Import, rotate, crop and resize pictures into google Cloud Storage'
 setup(
     name='google-cloud-storage-image-resizer',
     version=version,
@@ -40,7 +42,7 @@ setup(
     license='BSD',
     author='Erwan Lemonnier',
     author_email='erwan@lemonnier.se',
-    description='Import, rotate, crop and resize pictures into google Cloud Storage',
+    description=desc,
     long_description=long_description,
     long_description_content_type='text/markdown',
     install_requires=[
