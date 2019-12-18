@@ -25,6 +25,7 @@ if not version:
                     if 'Version:' in l:
                         _, version = l.split(' ')
                         version = version.strip()
+                        break
         else:
             print("WARNING: cannot set version in custom setup.py")
 
