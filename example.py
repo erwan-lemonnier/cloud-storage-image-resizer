@@ -7,8 +7,8 @@ from google.cloud import storage
 # proper test suite...)
 #
 # Requirements:
-# 1. Set the environment variables AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY
-# 2. Set S3_REGION and BUCKET_NAME to whatever fits you
+# 1. Put your google storage credentials in json format in the file 'gcloud-credentials.json'
+# 2. Edit the BUCKET_NAME to a bucket you have write access to
 #
 # Run:
 # python example.py
@@ -33,7 +33,7 @@ i = ImageResizer(client)
 
 i.fetch_image_from_url('https://cdn.shopify.com/s/files/1/1414/7912/products/olm_50macs_rainbow.jpg?v=1541103852')
 
-url = i.store(
+url = i.store_and_return_url(
     in_bucket=BUCKET_NAME,
     key_name='raw.png'
 )
@@ -47,7 +47,7 @@ i.orientate()
 
 # resize to width 200
 ii = i.resize(width=200)
-url_w200 = ii.store(
+url_w200 = ii.store_and_return_url(
     in_bucket=BUCKET_NAME,
     key_name='raw_w200.png'
 )
@@ -58,7 +58,7 @@ assert url_w200 == want, '%s == %s' % (url_w200, want)
 
 # resize to height 200
 ii = i.resize(height=200)
-url_h200 = ii.store(
+url_h200 = ii.store_and_return_url(
     in_bucket=BUCKET_NAME,
     key_name='raw_h200.png'
 )
@@ -66,7 +66,7 @@ log.info("Got url %s" % url_h200)
 
 # resize to a 100 square
 ii = i.resize(width=100, height=100)
-url_w100_h100 = ii.store(
+url_w100_h100 = ii.store_and_return_url(
     in_bucket=BUCKET_NAME,
     key_name='raw_w100_h100.png'
 )

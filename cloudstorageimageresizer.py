@@ -26,14 +26,19 @@ class RTFMException(CloudStorageImageResizerException):
 
 class ImageResizer(object):
     def __init__(self, client, bucket_name=None):
+        """Initialize an ImageResizer with a Google Storage Client instance and
+        optionaly the name of the Storage bucket in which to store images.
+
+        """
         if not client or 'google.cloud.storage.client.Client' not in str(type(client)):
-            raise InvalidParameterException("Expecting an instance of boto s3 connection")
+            raise InvalidParameterException("Expected an instance of google storage Client, got a %s" % client)
         self.client = client
         self.image = None
         self.exif_tags = {}
         self.bucket_name = bucket_name
 
-    def __image_base(self, image_in_bytes):
+    def __load_image(self, image_in_bytes):
+        """Instantiate a Pillow image, load its exif tags if any and do some preprocessing"""
         image = Image.open(image_in_bytes)
         # Fetch exif tags (if any)
         if image._getexif():
@@ -46,23 +51,27 @@ class ImageResizer(object):
         canvas = Image.new('RGBA', image.size, (255, 255, 255, 255))
         canvas.paste(image, mask=image)
         self.image = canvas
-
         return self
 
-    def load_image_into_memory(self, image):
-        """Keep uploaded image in memory"""
+    def load_image_from_bytes(self, image):
+        """Convert bytes into a Pillow image and keep it in memory"""
         assert image
         log.debug("Load file into memory: %s" % image)
-        return self.__image_base(image)
+        return self.__load_image(image)
 
     def fetch_image_from_url(self, url):
-        """Fetch an image and keep it in memory"""
+        """Fetch an image from a url and keep it in memory"""
         assert url
         log.debug("Fetching image at url %s" % url)
         res = requests.get(url)
         if res.status_code != 200:
             raise CantFetchImageException("Failed to load image at url %s" % url)
-        return self.__image_base(BytesIO(res.content))
+        return self.__load_image(BytesIO(res.content))
+
+    def fetch_image_from_bytestring(self, bytestring):
+        """Convert a bytestring into a Pillow image and keep it in memory"""
+        assert bytestring
+        return self.__load_image(BytesIO(bytestring))
 
     def orientate(self):
         """Apply exif orientation, if any"""
@@ -118,7 +127,7 @@ class ImageResizer(object):
         return self
 
     def resize(self, width=None, height=None):
-        """Resize the in-memory image previously fetched, and return a clone of self holding the resized image"""
+        """Resize the image in-memory and return a clone of self holding the resized image"""
         if not width and not height:
             raise InvalidParameterException("One of width or height must be specified")
         if not self.image:
@@ -211,7 +220,10 @@ class ImageResizer(object):
         return clone
 
     def store_and_return_blob(self, bucket_name=None, key_name=None, metadata=None, quality=95):
-        """Store the loaded image into the given bucket with the given key name. Tag it with metadata if provided."""
+        """Store the image into the given bucket (or defaults to the bucket passed to
+        the constructor), with the given key name. Tag it with metadata if provided.
+
+        """
         if not bucket_name and not self.bucket_name:
             raise InvalidParameterException("No bucket_name specified")
         if not key_name:
@@ -250,9 +262,12 @@ class ImageResizer(object):
         # Return the blob
         return blob
 
-    def store(self, in_bucket=None, key_name=None, metadata=None, quality=95, public=True):
-        """Store the loaded image into the given bucket with the given key name. Tag
-        it with metadata if provided. Make the Image public and return its url"""
+    def store_and_return_url(self, in_bucket=None, key_name=None, metadata=None, quality=95, public=True):
+        """Store the loaded image into the given bucket with the given key name. Tag it
+        with metadata if provided. Optionally make the Image public. Return its
+        url.
+
+        """
         blob = self.store_and_return_blob(in_bucket, key_name, metadata, quality)
 
         if public:
