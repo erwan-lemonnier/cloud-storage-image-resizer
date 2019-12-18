@@ -32,8 +32,11 @@ class ImageResizer(object):
         optionaly the name of the Storage bucket in which to store images.
 
         """
-        if not client or 'google.cloud.storage.client.Client' not in str(type(client)):
-            raise InvalidParameterException("Expected an instance of google storage Client, got a %s" % client)
+        gcloud_client_str = 'google.cloud.storage.client.Client'
+        if not client or gcloud_client_str not in str(type(client)):
+            msg = "Expected an instance of google storage Client, got a %s" % \
+                  client
+            raise InvalidParameterException(msg)
         self.client = client
         self.image = None
         self.exif_tags = {}
@@ -50,7 +53,8 @@ class ImageResizer(object):
             self.exif_tags = tags
 
     def __load_image(self, image_in_bytes):
-        """Instantiate a Pillow image, load its exif tags if any and do some preprocessing"""
+        """Instantiate a Pillow image,
+        set its exif tags if any and do some pre-processing"""
         image = Image.open(image_in_bytes)
         self.__set_exif_tags(image)
         # Make sure Pillow does not ignore alpha channels during conversion
@@ -74,7 +78,8 @@ class ImageResizer(object):
         log.debug("Fetching image at url %s" % url)
         res = requests.get(url)
         if res.status_code != 200:
-            raise CantFetchImageException("Failed to load image at url %s" % url)
+            msg = "Failed to load image at url %s" % url
+            raise CantFetchImageException(msg)
         return self.__load_image(BytesIO(res.content))
 
     def fetch_image_from_bytestring(self, bytestring):
@@ -142,7 +147,8 @@ class ImageResizer(object):
         return self
 
     def resize(self, width=None, height=None):
-        """Resize the image in-memory and return a clone of self holding the resized image"""
+        """Resize the image in-memory and return a clone of
+        self holding the resized image"""
         if not width and not height:
             raise InvalidParameterException("Missing width or height")
         if not self.image:
@@ -240,11 +246,14 @@ class ImageResizer(object):
 
         return clone
 
-    def store_and_return_blob(self, bucket_name=None, key_name=None, metadata=None, quality=95):
+    def store_and_return_blob(self,
+                              bucket_name=None,
+                              key_name=None,
+                              metadata=None,
+                              quality=95):
         """Store the image into the given bucket (or defaults to the bucket passed to
-        the constructor), with the given key name. Tag it with metadata if provided.
-
-        """
+        the constructor), with the given key name.
+        Tag it with metadata if provided."""
         if not bucket_name and not self.bucket_name:
             raise InvalidParameterException("No bucket_name specified")
         if not key_name:
@@ -283,13 +292,21 @@ class ImageResizer(object):
         # Return the blob
         return blob
 
-    def store_and_return_url(self, in_bucket=None, key_name=None, metadata=None, quality=95, public=True):
+    def store_and_return_url(self,
+                             in_bucket=None,
+                             key_name=None,
+                             metadata=None,
+                             quality=95,
+                             public=True):
         """Store the loaded image into the given bucket with the given key name. Tag it
         with metadata if provided. Optionally make the Image public. Return its
         url.
 
         """
-        blob = self.store_and_return_blob(in_bucket, key_name, metadata, quality)
+        blob = self.store_and_return_blob(in_bucket,
+                                          key_name,
+                                          metadata,
+                                          quality)
 
         if public:
             blob.make_public()

@@ -7,7 +7,7 @@ from google.cloud import storage
 # proper test suite...)
 #
 # Requirements:
-# 1. Put your google storage credentials in json format in the file 'gcloud-credentials.json'
+# 1. Put your google storage credentials in json format in the file 'gcloud-credentials.json'  # noqa
 # 2. Edit the BUCKET_NAME to a bucket you have write access to
 #
 # Run:
