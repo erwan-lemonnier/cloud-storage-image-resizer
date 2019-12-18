@@ -82,7 +82,7 @@ class ImageResizer(object):
             raise CantFetchImageException(msg)
         return self.__load_image(BytesIO(res.content))
 
-    def fetch_image_from_bytestring(self, bytestring):
+    def load_image_from_bytestring(self, bytestring):
         """Convert a bytestring into a Pillow image and keep it in memory"""
         assert bytestring
         return self.__load_image(BytesIO(bytestring))
