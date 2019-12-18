@@ -11,40 +11,34 @@ log = logging.getLogger(__name__)
 class CloudStorageImageResizerException(Exception):
     pass
 
+
 class InvalidParameterException(CloudStorageImageResizerException):
     pass
 
+
 class CantFetchImageException(CloudStorageImageResizerException):
     pass
+
 
 class RTFMException(CloudStorageImageResizerException):
     pass
 
 
 class ImageResizer(object):
-
-    def __init__(self, client):
+    def __init__(self, client, bucket_name=None):
         if not client or 'google.cloud.storage.client.Client' not in str(type(client)):
             raise InvalidParameterException("Expecting an instance of boto s3 connection")
         self.client = client
         self.image = None
         self.exif_tags = {}
+        self.bucket_name = bucket_name
 
-
-    def fetch(self, url):
-        """Fetch an image and keep it in memory"""
-        assert url
-        log.debug("Fetching image at url %s" % url)
-        res = requests.get(url)
-        if res.status_code != 200:
-            raise CantFetchImageException("Failed to load image at url %s" % url)
-        image = Image.open(BytesIO(res.content))
-
+    def __image_base(self, image_in_bytes):
+        image = Image.open(image_in_bytes)
         # Fetch exif tags (if any)
         if image._getexif():
             tags = dict((ExifTags.TAGS[k].lower(), v) for k, v in list(image._getexif().items()) if k in ExifTags.TAGS)
             self.exif_tags = tags
-
         # Make sure Pillow does not ignore alpha channels during conversion
         # See http://twigstechtips.blogspot.se/2011/12/python-converting-transparent-areas-in.html
         image = image.convert("RGBA")
@@ -55,6 +49,20 @@ class ImageResizer(object):
 
         return self
 
+    def load_image_into_memory(self, image):
+        """Keep uploaded image in memory"""
+        assert image
+        log.debug("Load file into memory: %s" % image)
+        return self.__image_base(image)
+
+    def fetch_image_from_url(self, url):
+        """Fetch an image and keep it in memory"""
+        assert url
+        log.debug("Fetching image at url %s" % url)
+        res = requests.get(url)
+        if res.status_code != 200:
+            raise CantFetchImageException("Failed to load image at url %s" % url)
+        return self.__image_base(BytesIO(res.content))
 
     def orientate(self):
         """Apply exif orientation, if any"""
@@ -63,14 +71,14 @@ class ImageResizer(object):
 
         # No exif orientation?
         if 'orientation' not in self.exif_tags:
-            log.info("No exif orientation known for this image")
+            log.debug("No exif orientation known for this image")
             return self
 
         # If image has an exif rotation, apply it to the image prior to resizing
         # See http://stackoverflow.com/questions/4228530/pil-thumbnail-is-rotating-my-image
 
         angle = self.exif_tags['orientation']
-        log.info("Applying exif orientation %s to image" % angle)
+        log.debug("Applying exif orientation %s to image" % angle)
         angle_to_degrees = [
             # orientation = transformation
             lambda i: i,
@@ -83,15 +91,34 @@ class ImageResizer(object):
             lambda i: i.transpose(Image.ROTATE_90),
         ]
 
-        assert angle >= 1 and angle <= 8
+        assert 1 <= angle <= 8
         f = angle_to_degrees[angle - 1]
         self.image = f(self.image)
         return self
 
+    def resize_if_larger_and_keep_ratio(self, width=None, height=None):
+        """Resize the in-memory image with kept ratio automatically"""
+        if not width and not height:
+            raise InvalidParameterException("One of width or height must be specified")
+        if not self.image:
+            raise RTFMException("No image loaded! You must call fetch() before resize_if_larger_and_keep_ratio()")
+
+        cur_width = self.image.width
+        cur_height = self.image.height
+
+        if width and height and cur_width > width and cur_height > height:
+            log.debug("Resizing image from (%s, %s) to (%s, %s)" % (cur_width, cur_height, width, height))
+            self.image.thumbnail((width, height), Image.ANTIALIAS)
+        elif width and cur_width > width:
+            log.debug("Resizing image width from %s to %s" % (cur_width, width))
+            self.image.thumbnail((width, cur_height), Image.ANTIALIAS)
+        elif height and cur_height > height:
+            log.debug("Resizing image height from %s to %s" % (cur_height, height))
+            self.image.thumbnail((cur_width, height), Image.ANTIALIAS)
+        return self
 
     def resize(self, width=None, height=None):
-        """Resize the in-memory image previously fetched, and
-        return a clone of self holding the resized image"""
+        """Resize the in-memory image previously fetched, and return a clone of self holding the resized image"""
         if not width and not height:
             raise InvalidParameterException("One of width or height must be specified")
         if not self.image:
@@ -100,6 +127,8 @@ class ImageResizer(object):
         cur_width = self.image.width
         cur_height = self.image.height
 
+        to_width = None
+        to_height = None
         if width and height:
             to_width = width
             to_height = height
@@ -112,11 +141,10 @@ class ImageResizer(object):
 
         # Return a clone of self, loaded with the resized image
         clone = ImageResizer(self.client)
-        log.info("Resizing image from (%s, %s) to (%s, %s)" % (cur_width, cur_height, to_width, to_height))
+        log.debug("Resizing image from (%s, %s) to (%s, %s)" % (cur_width, cur_height, to_width, to_height))
         clone.image = self.image.resize((to_width, to_height), Image.ANTIALIAS)
 
         return clone
-
 
     def crop(self, width=None, height=None):
         """Crop this image to a box, centered on the middle of the image, of size width
@@ -137,13 +165,13 @@ class ImageResizer(object):
         upper = int(h / 2 - height / 2)
         lower = int(h / 2 + height / 2)
 
-        log.info("Croping image of size (%s, %s) into a box of size (%s, %s, %s, %s)" % (width, height, left, upper, right, lower))
+        log.debug("Cropping image of size (%s, %s) into a box of size (%s, %s, %s, %s)" %
+                  (width, height, left, upper, right, lower))
 
         clone = ImageResizer(self.client)
         clone.image = self.image.crop((left, upper, right, lower))
 
         return clone
-
 
     def make_round(self):
         """Take a square PNG image and make its corner transparents so it looks like a circle"""
@@ -182,16 +210,16 @@ class ImageResizer(object):
 
         return clone
 
-
-    def store(self, in_bucket=None, key_name=None, metadata=None, quality=95, public=True):
-        """Store the loaded image into the given bucket with the given key name. Tag
-        it with metadata if provided. Make the Image public and return its url"""
-        if not in_bucket:
-            raise InvalidParameterException("No in_bucket specified")
+    def store_and_return_blob(self, bucket_name=None, key_name=None, metadata=None, quality=95):
+        """Store the loaded image into the given bucket with the given key name. Tag it with metadata if provided."""
+        if not bucket_name and not self.bucket_name:
+            raise InvalidParameterException("No bucket_name specified")
         if not key_name:
             raise InvalidParameterException("No key_name specified")
         if not self.image:
             raise RTFMException("No image loaded! You must call fetch() before store()")
+
+        bucket_name = bucket_name or self.bucket_name
 
         if metadata:
             if type(metadata) is not dict:
@@ -199,9 +227,7 @@ class ImageResizer(object):
         else:
             metadata = {}
 
-        # metadata['Content-Type'] = 'image/jpeg'
-
-        log.info("Storing image into bucket %s/%s" % (in_bucket, key_name))
+        log.debug("Storing image into bucket %s/%s" % (bucket_name, key_name))
 
         # Export image to a string
         sio = BytesIO()
@@ -210,9 +236,9 @@ class ImageResizer(object):
         sio.close()
 
         # Get the bucket
-        bucket = self.client.get_bucket(in_bucket)
+        bucket = self.client.get_bucket(bucket_name)
 
-        # Create a key containing the image. Make it public
+        # Create a key containing the image
         # https://googleapis.dev/python/storage/latest/blobs.html
         blob = bucket.blob(key_name)
         blob.metadata = metadata
@@ -220,6 +246,14 @@ class ImageResizer(object):
             contents,
             content_type='image/png',
         )
+
+        # Return the blob
+        return blob
+
+    def store(self, in_bucket=None, key_name=None, metadata=None, quality=95, public=True):
+        """Store the loaded image into the given bucket with the given key name. Tag
+        it with metadata if provided. Make the Image public and return its url"""
+        blob = self.store_and_return_blob(in_bucket, key_name, metadata, quality)
 
         if public:
             blob.make_public()
