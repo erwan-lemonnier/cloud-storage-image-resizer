@@ -146,7 +146,7 @@ class ImageResizer(object):
             self.image.thumbnail((cur_width, height), Image.ANTIALIAS)
         return self
 
-    def resize(self, width=None, height=None):
+    def resize(self, width=None, height=None, progressive=False):
         """Resize the image in-memory and return a clone of
         self holding the resized image"""
         if not width and not height:
@@ -246,14 +246,21 @@ class ImageResizer(object):
 
         return clone
 
-    def store_and_return_blob(self,
-                              bucket_name=None,
-                              key_name=None,
-                              metadata=None,
-                              quality=95):
+    def store_and_return_blob(
+            self,
+            bucket_name=None,
+            key_name=None,
+            metadata=None,
+            quality=95,
+            encoding='PNG',
+            progressive=True,
+    ):
         """Store the image into the given bucket (or defaults to the bucket passed to
         the constructor), with the given key name.
         Tag it with metadata if provided."""
+
+        assert encoding in ('PNG', 'JPEG')
+
         if not bucket_name and not self.bucket_name:
             raise InvalidParameterException("No bucket_name specified")
         if not key_name:
@@ -273,7 +280,12 @@ class ImageResizer(object):
 
         # Export image to a string
         sio = BytesIO()
-        self.image.save(sio, 'PNG', quality=quality, optimize=True)
+        if encoding == 'PNG':
+            self.image.save(sio, 'PNG', quality=quality, optimize=True)
+        elif encoding == 'JPEG':
+            log.info("converting to RGB")
+            im = self.image.convert("RGB")
+            im.save(sio, 'jpeg', quality=quality, optimize=True, progressive=progressive)
         contents = sio.getvalue()
         sio.close()
 
@@ -282,31 +294,46 @@ class ImageResizer(object):
 
         # Create a key containing the image
         # https://googleapis.dev/python/storage/latest/blobs.html
+
+        encoding_to_content_type = {
+            'PNG': 'image/png',
+            'JPEG': 'image/jpeg',
+        }
+
         blob = bucket.blob(key_name)
         blob.metadata = metadata
         blob.upload_from_string(
             contents,
-            content_type='image/png',
+            content_type=encoding_to_content_type[encoding],
         )
 
         # Return the blob
         return blob
 
-    def store_and_return_url(self,
-                             in_bucket=None,
-                             key_name=None,
-                             metadata=None,
-                             quality=95,
-                             public=True):
+    def store_and_return_url(
+            self,
+            in_bucket=None,
+            key_name=None,
+            metadata=None,
+            quality=95,
+            public=True,
+            encoding='PNG',
+            progressive=True,
+    ):
         """Store the loaded image into the given bucket with the given key name. Tag it
         with metadata if provided. Optionally make the Image public. Return its
         url.
 
         """
-        blob = self.store_and_return_blob(in_bucket,
-                                          key_name,
-                                          metadata,
-                                          quality)
+
+        blob = self.store_and_return_blob(
+            in_bucket,
+            key_name,
+            metadata,
+            quality,
+            encoding=encoding,
+            progressive=progressive,
+        )
 
         if public:
             blob.make_public()
