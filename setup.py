@@ -38,6 +38,9 @@ setup(
     name='google-cloud-storage-image-resizer',
     version=version,
     metadata_version=version,
+    custom_metadata={
+        'version': version,
+    },
     url='https://github.com/erwan-lemonnier/cloud-storage-image-resizer',
     license='BSD',
     author='Erwan Lemonnier',
