@@ -23,9 +23,6 @@ if not version:
                     if 'Version:' in l:
                         _, version = l.split(' ')
                         version = version.strip()
-                    if 'Metadata-Version:' in l:
-                        _, version = l.split(' ')
-                        version = version.strip()
         else:
             print("WARNING: cannot set version in custom setup.py")
 
@@ -40,6 +37,7 @@ desc = 'Import, rotate, crop and resize pictures into google Cloud Storage'
 setup(
     name='google-cloud-storage-image-resizer',
     version=version,
+    metadata_version=version,
     url='https://github.com/erwan-lemonnier/cloud-storage-image-resizer',
     license='BSD',
     author='Erwan Lemonnier',
