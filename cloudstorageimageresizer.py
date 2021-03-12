@@ -246,15 +246,23 @@ class ImageResizer(object):
 
         return clone
 
-    def store_and_return_blob(
-            self,
-            bucket_name=None,
-            key_name=None,
-            metadata=None,
-            quality=95,
-            encoding='PNG',
-            progressive=True,
-    ):
+
+    def get_content(self, encoding='PNG', quality=95, progressive=True):
+        """Return the image's content as a string, in the given encoding"""
+        assert encoding in ('PNG', 'JPEG')
+        sio = BytesIO()
+        if encoding == 'PNG':
+            self.image.save(sio, 'PNG', quality=quality, optimize=True)
+        elif encoding == 'JPEG':
+            log.info("converting to RGB")
+            im = self.image.convert("RGB")
+            im.save(sio, 'jpeg', quality=quality, optimize=True, progressive=progressive)
+        contents = sio.getvalue()
+        sio.close()
+        return contents
+
+
+    def store_and_return_blob(self, bucket_name=None, key_name=None, metadata=None, quality=95, encoding='PNG', progressive=True):
         """Store the image into the given bucket (or defaults to the bucket passed to
         the constructor), with the given key name.
         Tag it with metadata if provided."""
@@ -279,15 +287,7 @@ class ImageResizer(object):
         log.debug("Storing image into bucket %s/%s" % (bucket_name, key_name))
 
         # Export image to a string
-        sio = BytesIO()
-        if encoding == 'PNG':
-            self.image.save(sio, 'PNG', quality=quality, optimize=True)
-        elif encoding == 'JPEG':
-            log.info("converting to RGB")
-            im = self.image.convert("RGB")
-            im.save(sio, 'jpeg', quality=quality, optimize=True, progressive=progressive)
-        contents = sio.getvalue()
-        sio.close()
+        content = self.get_content()
 
         # Get the bucket
         bucket = self.client.get_bucket(bucket_name)
@@ -303,7 +303,7 @@ class ImageResizer(object):
         blob = bucket.blob(key_name)
         blob.metadata = metadata
         blob.upload_from_string(
-            contents,
+            content,
             content_type=encoding_to_content_type[encoding],
         )
 
